@@ -1,0 +1,4 @@
+/vendor
+.env
+*kdev4
+*.diff
