@@ -4,6 +4,7 @@ use Illuminate\Console\Command;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\InputArgument;
 use Sunra\PhpSimple\HtmlDomParser;
+use marcushat\RollingCurlX;
 use Log;
 
 class Scrapper extends Command
@@ -29,6 +30,7 @@ class Scrapper extends Command
     private $last_page;
     private $export_file;
     private $export_fields;
+    private $items_per_page;
 
 
     public function __construct()
@@ -36,7 +38,9 @@ class Scrapper extends Command
         parent::__construct();
 
         $this->base_url = "http://www.rtve.es/alacarta/audios/";
-        $this->table_url = "http://www.rtve.es/alacarta/interno/contenttable.shtml?orderCriteria=DESC&modl=TOC&locale=es&pageSize=15&advSearchOpen=false";
+        $this->table_url = "http://www.rtve.es/alacarta/interno/contenttable.shtml?orderCriteria=DESC&modl=TOC&locale=es&advSearchOpen=false";
+        $this->items_per_page = 15;
+        $this->shows_info = [];
     }
 
     /**
@@ -57,21 +61,32 @@ class Scrapper extends Command
         $this->extractGeneralShowInfo($dom);
 
         $this->info("Starting the scrapping");
-        $this->output->progressStart($this->last_page);
+        $this->output->progressStart($this->last_page + 1);
 
-
+        $rolling_curl = new RollingCurlX($this->items_per_page);
         $info = [];
         for ($current_page = 1; $current_page <= $this->last_page; $current_page++) {
-            $this->output->progressAdvance(1);
-            $page_url = $this->table_url . '&' . http_build_query(['ctx' => $this->show_id, 'pbq' => $current_page]);
-            $page_dom = HtmlDomParser::file_get_html($page_url);
-            $info = array_merge($this->extractShowInfoFromPage($page_dom), $info);
+            $page_url = $this->table_url . '&' . http_build_query(['ctx' => $this->show_id, 'pbq' => $current_page, 'pageSize' => $this->items_per_page]);
+            $rolling_curl->addRequest($page_url, [], [$this, 'callback']);
         }
+        $rolling_curl->execute();
         $this->output->progressFinish();
 
         $this->info("Starting the export");
-        $this->exportToCSV($info);
+        $this->exportToCSV($this->shows_info);
         $this->info("Done! You can find your file at {$this->export_file}");
+    }
+
+    public function callback($response, $url, $request_info, $user_data, $time) {
+
+        if ($request_info['http_code'] !== 200) {
+            $this->error("Fetch error {$request_info['http_code']} for '$url'");
+            return;
+        }
+
+        $page_dom = HtmlDomParser::str_get_html($response);
+        $this->shows_info = array_merge($this->extractShowInfoFromPage($page_dom), $this->shows_info);
+        $this->output->progressAdvance(1);
     }
 
     public function exportToCSV($info)

@@ -13,7 +13,8 @@
         "php": ">=5.5.9",
         "laravel/lumen-framework": "5.2.*",
         "vlucas/phpdotenv": "~2.2",
-        "sunra/php-simple-html-dom-parser": "^1.5"
+        "sunra/php-simple-html-dom-parser": "^1.5",
+        "marcushat/rolling-curl-x": "dev-master"
     },
     "require-dev": {
         "fzaninotto/faker": "~1.4",

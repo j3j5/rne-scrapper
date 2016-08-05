@@ -4,8 +4,8 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "hash": "a97a6029c3508cd5cb8719760d69d08a",
-    "content-hash": "80ad8d1d53ab28ab58f70ab780ac2875",
+    "hash": "97f802b30cadfc7d5a2bf58257ab3231",
+    "content-hash": "9a90452f49d5ed0c05e71b6a04e9aea9",
     "packages": [
         {
             "name": "doctrine/inflector",
@@ -1217,6 +1217,45 @@
                 "lumen"
             ],
             "time": "2016-08-01 14:48:25"
+        },
+        {
+            "name": "marcushat/rolling-curl-x",
+            "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/j3j5/RollingCurlX.git",
+                "reference": "ab0aa914e74ceaa9f5ec9e2df2000ca23eb58701"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/j3j5/RollingCurlX/zipball/ab0aa914e74ceaa9f5ec9e2df2000ca23eb58701",
+                "reference": "ab0aa914e74ceaa9f5ec9e2df2000ca23eb58701",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.4.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-0": {
+                    "marcushat": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Julio Foulquie",
+                    "email": "jfoulquie@gmail.com"
+                },
+                {
+                    "name": "Marcus Hat"
+                }
+            ],
+            "description": "Easy to use cURL Multi wrapper for PHP.",
+            "time": "2015-04-18 19:00:42"
         },
         {
             "name": "monolog/monolog",
@@ -3406,7 +3445,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": [],
+    "stability-flags": {
+        "marcushat/rolling-curl-x": 20
+    },
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
