@@ -6,6 +6,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Sunra\PhpSimple\HtmlDomParser;
 use marcushat\RollingCurlX;
 use Log;
+use Carbon\Carbon;
 
 class Scrapper extends Command
 {
@@ -72,11 +73,20 @@ class Scrapper extends Command
         $rolling_curl->execute();
         $this->output->progressFinish();
 
+        $this->info("Sort it by date");
+        usort($this->shows_info, function ($a, $b) {
+            return strtotime($a[$this->date_position]) - strtotime($b[$this->date_position]);
+        });
+        $this->info("Done");
+
         $this->info("Starting the export");
         $this->exportToCSV($this->shows_info);
         $this->info("Done! You can find your file at {$this->export_file}");
     }
 
+    /**
+     * Callback from the parallel requests to extract all info page
+     */
     public function callback($response, $url, $request_info, $user_data, $time) {
 
         if ($request_info['http_code'] !== 200) {
@@ -89,19 +99,25 @@ class Scrapper extends Command
         $this->output->progressAdvance(1);
     }
 
+    /**
+     * Export all the info to a CSV file
+     */
     public function exportToCSV($info)
     {
         $fp = fopen($this->export_file, 'w');
         fputcsv($fp, $this->export_fields);
         $this->output->progressStart(count($info));
         foreach ($info as $fields) {
-            $this->output->progressAdvance(1);
             fputcsv($fp, $fields);
+            $this->output->progressAdvance(1);
         }
         fclose($fp);
         $this->output->progressFinish();
     }
 
+    /**
+     * Get general info about the show (amount of pages available, show_id...)
+     */
     private function extractGeneralShowInfo($dom) {
         $last_page_selector = 'li[class=ultimo] a';
         $last_page_path = $dom->find($last_page_selector, 0)->href;
@@ -120,6 +136,9 @@ class Scrapper extends Command
         $this->last_page = $query_var['pbq'];
     }
 
+    /**
+     * Get the info actual info from the DOM page.
+     */
     private function extractShowInfoFromPage($dom)
     {
         $info = [];
@@ -136,13 +155,14 @@ class Scrapper extends Command
                 foreach($li->find('span span') as $header) {
                     $this->export_fields[] = trim(strip_tags($header->innertext));
                 }
+                $this->date_position = array_search('Fecha', $this->export_fields);
                 $this->export_fields[] = 'Link';
                 $first = false;
             } else {
                 // Extract the content
                 foreach($li->find('span') as $span) {
                     switch($span->class) {
-                        case 'col_tip':
+                        case 'col_tip': //
                             if (!empty($span->find('span', 1))) {
                                 $info[$i][] = $span->find('span', 1)->innertext;
                             } else {
@@ -152,13 +172,15 @@ class Scrapper extends Command
                                 $link = $span->find('a', 0)->href;
                             }
                             break;
-                        case 'col_pop':
-                            $info[$i][] = trim(strip_tags($span->find('span', 0)->title));
+                        case 'col_pop': //
+                            $info[$i][] = trim(html_entity_decode(strip_tags($span->find('span', 0)->title)));
                             break;
-                        case 'col_tit':
-                        case 'col_fec':
-                        case 'col_dur':
-                            $info[$i][] = trim(strip_tags($span->innertext));
+                        case 'col_fec': // fecha
+                            $info[$i][] = $this->parseDate(trim(html_entity_decode(strip_tags($span->innertext))));
+                            break;
+                        case 'col_tit': // título
+                        case 'col_dur': // duración
+                            $info[$i][] = trim(html_entity_decode(strip_tags($span->innertext)));
                             break;
                         default:
                             break;
@@ -173,5 +195,41 @@ class Scrapper extends Command
             }
         }
         return $info;
+    }
+
+    /**
+     * Try to parse the date in spanish to a more "orderable" date
+     */
+    private function parseDate($spanish_date)
+    {
+        $date_format = "Y/m/d";
+        $original_locale = setlocale(LC_TIME, 0);
+        setlocale(LC_TIME, 'es_ES');
+        $ts = strptime($spanish_date, '%d %b %Y');
+        $date = $spanish_date;
+        if (!empty($ts)) {
+            $date = Carbon::create(($ts['tm_year'] + 1900), ($ts['tm_mon'] + 1), $ts['tm_mday'], $ts['tm_hour'], $ts['tm_min'], $ts['tm_sec'])->format($date_format);
+        } else {
+            // try to translate
+            $dates = [
+                'lunes' => 'monday', 'martes' => 'tuesday',
+                'miércoles' => 'wednesday', 'jueves' => 'thursday',
+                'viernes' => 'friday', 'sábado' => 'saturday', 'domingo' => 'sunday'
+            ];
+            $string_copy = strtolower($spanish_date);   // Go lowercase
+            $string_copy = str_replace('pasado', 'last', $string_copy);
+            $string_copy = str_replace('hoy', 'today', $string_copy);
+            $string_copy = str_replace('ayer', 'yesterday', $string_copy);
+            foreach (array_keys($dates) as $name) {
+                $string_copy = str_replace($name, $dates[$name], $string_copy);
+            }
+            // Did it work?
+            $new_date = Carbon::parse($string_copy);
+            if (!empty($new_date)) {
+                $date = $new_date->format($date_format);
+            }
+        }
+        setlocale(LC_TIME, $original_locale);
+        return $date;
     }
 }
