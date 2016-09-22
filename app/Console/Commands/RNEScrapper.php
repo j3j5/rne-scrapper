@@ -8,7 +8,7 @@ use marcushat\RollingCurlX;
 use Log;
 use Carbon\Carbon;
 
-class Scrapper extends Command
+class RNEScrapper extends Command
 {
     /**
      * The name and signature of the console command.
@@ -30,6 +30,7 @@ class Scrapper extends Command
     private $show_id;
     private $last_page;
     private $export_file;
+    private $export_playlist;
     private $export_fields;
     private $items_per_page;
 
@@ -55,6 +56,8 @@ class Scrapper extends Command
         $show = $arguments['show'];
 
         $this->export_file = storage_path("app/$show-" . date('Y-m-d') .".csv");
+        $this->export_playlist = storage_path("app/$show-" . date('Y-m-d') .".xspf");
+
         $show = str_slug($show);
 
         $dom = HtmlDomParser::file_get_html($this->base_url.$show);
@@ -79,9 +82,8 @@ class Scrapper extends Command
         });
         $this->info("Done");
 
-        $this->info("Starting the export");
         $this->exportToCSV($this->shows_info);
-        $this->info("Done! You can find your file at {$this->export_file}");
+        $this->exportToPlaylist($this->shows_info);
     }
 
     /**
@@ -102,8 +104,9 @@ class Scrapper extends Command
     /**
      * Export all the info to a CSV file
      */
-    public function exportToCSV($info)
+    private function exportToCSV($info)
     {
+        $this->info("Starting the export to CSV");
         $fp = fopen($this->export_file, 'w');
         fputcsv($fp, $this->export_fields);
         $this->output->progressStart(count($info));
@@ -113,7 +116,30 @@ class Scrapper extends Command
         }
         fclose($fp);
         $this->output->progressFinish();
+        $this->info("Done! You can find your file at {$this->export_file}");
     }
+
+    private function exportToPlaylist($info) {
+        $this->info("Starting the export to XSPF");
+        $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><playlist version="1" xmlns="http://xspf.org/ns/0/"></playlist>');
+
+        $tracklist = $xml->addChild("trackList");
+        $this->output->progressStart(count($info));
+        foreach ($info as $fields) {
+            $this->output->progressAdvance(1);
+            if (!isset($fields[5])) {
+                continue;
+            }
+            $track = $tracklist->addChild('track');
+            $track->addChild('location', $fields[5]);
+            $track->addChild('title', htmlspecialchars($fields[0]));
+        }
+
+        file_put_contents($this->export_playlist, $xml->asXML());
+        $this->output->progressFinish();
+        $this->info("Done! You can find your file at {$this->export_playlist}");
+    }
+
 
     /**
      * Get general info about the show (amount of pages available, show_id...)
